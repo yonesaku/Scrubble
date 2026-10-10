@@ -1,0 +1,73 @@
+name: Build Scrubble .deb
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to attach .debs to releases
+
+jobs:
+  build:
+    # macOS runner: the Makefile uses /usr/libexec/PlistBuddy, which only exists on macOS
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        scheme: [rootful, rootless]
+
+    env:
+      THEOS: ${{ github.workspace }}/theos
+      THEOS_PACKAGE_SCHEME: ${{ matrix.scheme == 'rootless' && 'rootless' || '' }}
+
+    steps:
+      - name: Checkout Scrubble
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        run: brew install ldid dpkg
+
+      - name: Install Theos
+        run: git clone --recursive --depth=1 https://github.com/theos/theos.git "$THEOS"
+
+      - name: Install iOS SDKs
+        run: |
+          # Makefile targets iphone:clang:14.5:14.0, so we need the 14.5 SDK
+          git clone --depth=1 https://github.com/theos/sdks.git "$THEOS/sdks"
+          ls "$THEOS/sdks"
+
+      - name: Install patched MediaRemote.h
+        run: |
+          # The README says Scrubble needs a patched MediaRemote.h in ${THEOS}/vendor/include.
+          # Option A: set a repo variable MEDIAREMOTE_HEADER_URL pointing at a raw copy of it.
+          # Option B: commit it to include/MediaRemote.h in the repo.
+          mkdir -p "$THEOS/vendor/include"
+          if [ -n "${{ vars.MEDIAREMOTE_HEADER_URL }}" ]; then
+            curl -fsSL "${{ vars.MEDIAREMOTE_HEADER_URL }}" -o "$THEOS/vendor/include/MediaRemote.h"
+          elif [ -f include/MediaRemote.h ]; then
+            cp include/MediaRemote.h "$THEOS/vendor/include/MediaRemote.h"
+          else
+            echo "::warning::No patched MediaRemote.h supplied. Build may fail if it's missing."
+          fi
+
+      - name: Build package
+        run: make clean package FINALPACKAGE=1
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrubble-${{ matrix.scheme }}-deb
+          path: packages/*.deb
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pac
+          kages/*.deb
