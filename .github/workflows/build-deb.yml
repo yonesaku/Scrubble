@@ -32,10 +32,10 @@ jobs:
           fi
 
       - name: Build rootful deb
-        run: make clean package FINALPACKAGE=1
+        run: make clean package FINALPACKAGE=1 TARGET=iphone:clang:latest:14.0
 
       - name: Build rootless deb
-        run: make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+        run: make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless TARGET=iphone:clang:latest:14.0
 
       - name: Upload debs
         uses: actions/upload-artifact@v4
