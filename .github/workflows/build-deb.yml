@@ -19,8 +19,8 @@ jobs:
       - name: Install Theos
         run: git clone --recursive --depth=1 https://github.com/theos/theos.git "$THEOS"
 
-      - name: Install SDKs
-        run: git clone --depth=1 https://github.com/theos/sdks.git "$THEOS/sdks"
+      - name: Check SDKs
+        run: ls "$THEOS/sdks"
 
       - name: Copy MediaRemote header if the repo has one
         run: |
