@@ -31,6 +31,29 @@ jobs:
             echo "No MediaRemote.h in repo include folder, continuing anyway"
           fi
 
+      - name: Create MediaRemote stub for the linker
+        run: |
+          # Private frameworks aren't in public SDKs, so build a stub .tbd listing
+          # every MR* symbol the project references. The real framework is used on-device.
+          SYMS=$(grep -rhoE 'k?MR[A-Za-z0-9_]+' src include ScrubblePrefs 2>/dev/null | sort -u | sed 's/^/"_/;s/$/"/' | paste -sd, -)
+          echo "Symbols found: $SYMS"
+          for SDK in "$THEOS"/sdks/*.sdk; do
+            DIR="$SDK/System/Library/PrivateFrameworks/MediaRemote.framework"
+            mkdir -p "$DIR"
+            cat > "$DIR/MediaRemote.tbd" <<EOF
+          --- !tapi-tbd
+          tbd-version:     4
+          targets:         [ arm64-ios, arm64e-ios ]
+          install-name:    '/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote'
+          current-version: 1
+          compatibility-version: 1
+          exports:
+            - targets:         [ arm64-ios, arm64e-ios ]
+              symbols:         [ $SYMS ]
+          ...
+          EOF
+          done
+
       - name: Build rootful deb
         run: make clean package FINALPACKAGE=1 TARGET=iphone:clang:latest:14.0
 
